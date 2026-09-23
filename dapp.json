@@ -1,3 +1,14 @@
 {
-  "secrets": []
+  "name": "sv-staging-stockroom",
+  "secrets": [],
+  "tests": [
+    {
+      "id": "test-panel.default",
+      "name": "Test panel renders",
+      "path": "/",
+      "expectSelector": "#panel",
+      "visual": true,
+      "impact": ["public/index.html", "server.js"]
+    }
+  ]
 }

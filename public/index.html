@@ -64,131 +64,276 @@
   })();
   </script>
   <title>sv-staging-stockroom</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%237c3aed'/><circle cx='50' cy='50' r='18' fill='white'/></svg>">
-  <!-- Tailwind, PRECOMPILED for this app (was cdn.tailwindcss.com's
-       in-browser engine plus an inline tailwind.config here). The config
-       moved to tailwind.config.js in the repo root; npm run build compiles
-       it to public/tailwind.css with Docker or Paketo on every image build, so the
-       stylesheet is regenerated from THIS commit's markup every deploy and
-       can never drift behind the code. ~7 KB of CSS instead of a ~400 KB
-       engine, and no flash of unstyled content.
-       Writing class names as whole literals is what keeps this working — a
-       class assembled from fragments at runtime (e.g. "bg-" + tone + "-500")
-       is invisible to the compiler. If you genuinely need runtime-generated
-       classes, swap this link for the platform-hosted engine instead:
-       <script src="/usernode-tailwind/v1/tailwind.js"></script> -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%237c3aed'/><rect x='30' y='40' width='40' height='30' rx='6' fill='white'/><rect x='26' y='32' width='48' height='12' rx='4' fill='white'/></svg>">
   <link rel="stylesheet" href="/tailwind.css">
-  <!-- The platform bridge, centrally hosted and loaded by RELATIVE path (the
-       handler in server.js serves it under a plain "node server.js"; the
-       platform's edge answers it everywhere else). Never vendor it and never
-       write a hostname in front of it.
-       It is NOT conditional on this app calling a bridge API: it is also how
-       the app ANSWERS the shell, so a scaffold without it is invisible to
-       anything that asks the frame a question. Offline launch is one of those.
-       Another is the page's colour: the bridge reports this document's opaque
-       ground to the shell (#1581), which is what makes the platform bar above
-       the app take the app's tone instead of the viewer's theme (#1945). This
-       scaffold paints a dark page (bg-zinc-950 on the body element), so
-       without this tag a brand-new app sits under a light bar. -->
   <script src="/usernode-bridge/v1/bridge.js"></script>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
-  <main class="max-w-md mx-auto px-4 py-10 flex flex-col gap-6">
+  <main class="max-w-3xl mx-auto px-4 py-10 flex flex-col gap-8">
 
-    <!-- usernode-starter-notice@1 — starter-template messaging. When building
-         the user's real app, replace this whole screen and delete this block,
-         both sentinel comments included. -->
-    <section class="rounded-2xl border border-violet-500/30 bg-gradient-to-b from-violet-600/20 to-transparent p-6 text-center flex flex-col items-center gap-3">
-      <span class="inline-block rounded-full bg-violet-600/20 text-violet-300 text-xs font-semibold uppercase tracking-wide px-3 py-1">Starter template</span>
-      <h1 class="text-2xl font-bold">sv-staging-stockroom</h1>
-      <p class="text-sm text-zinc-300 leading-relaxed">Welcome to your new app! Everything on this screen is placeholder content that came with it.</p>
-      <p class="text-sm text-zinc-300 leading-relaxed">Tap <strong class="text-violet-300 font-semibold">Improve</strong> in the header, describe what you'd like in plain English, and it will be turned into your real app.</p>
+    <header class="flex flex-col gap-2">
+      <h1 class="text-3xl font-bold">sv-staging-stockroom</h1>
+      <p class="text-sm text-zinc-400 leading-relaxed">Small inventory and orders app for exercising database migration and restore paths. Orders, items, stock and movements all commit in a single transaction.</p>
+    </header>
+
+    <section id="staging-banner" class="hidden rounded-xl border border-violet-500/40 bg-violet-500/10 px-4 py-3 text-sm text-violet-200">
+      Staging preview: demo data is fake and re-seeded on boot. Nothing here is production.
     </section>
 
-    <section>
-      <h2 class="text-sm font-medium text-zinc-500 mb-2 px-1">What's already working</h2>
-      <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 divide-y divide-zinc-800">
-        <div class="flex items-start gap-3 p-4">
-          <svg class="w-5 h-5 text-violet-400 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7 7a1 1 0 0 1-1.4 0l-3-3a1 1 0 1 1 1.4-1.4L9 11.6l6.3-6.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-          <div>
-            <p class="text-sm font-semibold text-zinc-100">Sign-in</p>
-            <p class="text-sm text-zinc-400">You're signed in through Homeroom automatically — no accounts to build.</p>
-          </div>
+    <section class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col gap-4">
+      <div class="flex items-baseline justify-between gap-2">
+        <h2 class="text-lg font-semibold">Test panel</h2>
+        <button id="panel-refresh" class="rounded-lg bg-violet-600 hover:bg-violet-500 active:scale-95 transition-all px-3 py-1.5 text-sm font-medium text-white">Refresh</button>
+      </div>
+      <div id="panel-status" class="text-sm text-zinc-400">Loading…</div>
+      <div id="panel" class="hidden flex flex-col gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          <div class="rounded-lg bg-zinc-800/60 py-3"><div class="text-xs text-zinc-500">Schema version</div><div id="stat-version" class="text-xl font-mono">–</div></div>
+          <div class="rounded-lg bg-zinc-800/60"><div class="text-xs text-zinc-500 pt-2">Products</div><div id="stat-products" class="text-xl font-mono pb-2">–</div></div>
+          <div class="rounded-lg bg-zinc-800/60"><div class="text-xs text-zinc-500 pt-2">Orders</div><div id="stat-orders" class="text-xl font-mono pb-2">–</div></div>
+          <div class="rounded-lg bg-zinc-800/60"><div class="text-xs text-zinc-500 pt-2">Order value</div><div id="stat-value" class="text-xl font-mono pb-2">–</div></div>
         </div>
-        <div class="flex items-start gap-3 p-4">
-          <svg class="w-5 h-5 text-violet-400 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7 7a1 1 0 0 1-1.4 0l-3-3a1 1 0 1 1 1.4-1.4L9 11.6l6.3-6.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-          <div>
-            <p class="text-sm font-semibold text-zinc-100">Database</p>
-            <p class="text-sm text-zinc-400">Your app has its own private database, ready to store things.</p>
-          </div>
+        <div>
+          <h3 class="text-sm font-medium text-zinc-400 mb-2">Integrity checks</h3>
+          <ul id="integrity-list" class="space-y-1 text-sm"></ul>
         </div>
-        <div class="flex items-start gap-3 p-4">
-          <svg class="w-5 h-5 text-violet-400 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7 7a1 1 0 0 1-1.4 0l-3-3a1 1 0 1 1 1.4-1.4L9 11.6l6.3-6.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-          <div>
-            <p class="text-sm font-semibold text-zinc-100">Live API</p>
-            <p class="text-sm text-zinc-400">The example below talks to a real server — try it.</p>
-          </div>
+        <div>
+          <h3 class="text-sm font-medium text-zinc-400 mb-2">Ownership and permissions</h3>
+          <div id="permissions" class="text-sm text-zinc-300 space-y-1"></div>
         </div>
       </div>
     </section>
-    <!-- /usernode-starter-notice@1 -->
 
-    <section class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col items-center gap-5">
-      <div class="w-full flex items-baseline justify-between gap-2">
-        <h2 class="text-sm font-medium text-zinc-500">Try the example</h2>
-        <span class="text-xs text-zinc-600">This example will be replaced</span>
-      </div>
+    <section class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col gap-4">
+      <h2 class="text-lg font-semibold">Products</h2>
+      <div id="products-list" class="flex flex-col gap-2 text-sm"></div>
+    </section>
 
-      <button id="press-btn" class="w-32 h-32 rounded-full bg-violet-600 hover:bg-violet-500 active:scale-95 transition-all text-white text-xl font-bold shadow-lg shadow-violet-600/30">
-        Press!
-      </button>
-
-      <div id="count" class="text-lg text-zinc-400">0 total presses</div>
-
-      <div class="w-full max-w-sm">
-        <h3 class="text-sm font-medium text-zinc-500 mb-2 text-center">Leaderboard</h3>
-        <div id="leaderboard" class="space-y-1"></div>
+    <section class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col gap-4">
+      <h2 class="text-lg font-semibold">Place an order</h2>
+      <p class="text-sm text-zinc-400">Creates the order, its items and stock movements in one transaction. Supply an orderRef to test idempotency.</p>
+      <div class="flex flex-col gap-3">
+        <label class="text-sm flex flex-col gap-1">
+          <span class="text-zinc-400">Order reference (optional, unique)</span>
+          <input id="order-ref" class="rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm" placeholder="e.g. move-test-001">
+        </label>
+        <div class="text-sm text-zinc-400">Pick a product below, then submit.</div>
+        <div id="order-status" class="text-sm"></div>
+        <button id="order-submit" class="self-start rounded-lg bg-violet-600 hover:bg-violet-500 active:scale-95 transition-all px-4 py-2 text-sm font-medium text-white">Place order</button>
+        <div id="order-result" class="text-sm"></div>
       </div>
     </section>
 
-    <p class="text-center text-xs text-zinc-600">Built on Homeroom — this template screen disappears once you build your real app.</p>
+    <section class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col gap-4">
+      <h2 class="text-lg font-semibold">Deterministic seed generator</h2>
+      <div class="flex flex-col sm:flex-row gap-3 text-sm">
+        <label class="flex flex-col gap-1 flex-1">
+          <span class="text-zinc-400">Seed key</span>
+          <input id="seed-key" class="rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2" placeholder="round-trip-1">
+        </label>
+        <label class="flex flex-col gap-1 w-32">
+          <span class="text-zinc-400">Products</span>
+          <input id="seed-products" type="number" min="0" max="500" value="100" class="rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2">
+        </label>
+        <label class="flex flex-col gap-1 w-32">
+          <span class="text-zinc-400">Orders</span>
+          <input id="seed-orders" type="number" min="0" max="20000" value="10000" class="rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2">
+        </label>
+        <button id="seed-run" class="self-end rounded-lg bg-violet-600 hover:bg-violet-500 active:scale-95 transition-all px-4 py-2 font-medium text-white">Run seed</button>
+      </div>
+      <div id="seed-status" class="text-sm text-zinc-400">Seeds are idempotent per key: same key, same data. Start small, scale up after a successful move.</div>
+    </section>
+
+    <section class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col gap-4">
+      <h2 class="text-lg font-semibold">Rollback test</h2>
+      <p class="text-sm text-zinc-400">Runs a transaction that writes an order then fails. After rollback, the probe row must not exist.</p>
+      <button id="rollback-run" class="self-start rounded-lg bg-red-600 hover:bg-red-500 active:scale-95 transition-all px-4 py-2 text-sm font-medium text-white">Run failing transaction</button>
+      <div id="rollback-status" class="text-sm"></div>
+    </section>
+
+    <section class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col gap-2">
+      <h2 class="text-lg font-semibold">Recent orders</h2>
+      <div id="orders-list" class="text-sm text-zinc-300 space-y-1"></div>
+    </section>
+
   </main>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token') || '';
-    const headers = token ? { 'x-usernode-token': token } : {};
+    const headers = token ? { 'x-usernode-token': token } : { 'x-usernode-token': '' };
+    const jsonHeaders = { 'Content-Type': 'application/json', ...headers };
+    let products = [];
 
-    async function loadLeaderboard() {
-      const res = await fetch('/api/leaderboard', { headers });
-      if (!res.ok) return;
-      const { leaderboard } = await res.json();
-      const el = document.getElementById('leaderboard');
-      if (!leaderboard.length) {
-        el.innerHTML = '<p class="text-center text-zinc-600 text-sm">No presses yet</p>';
-        return;
-      }
-      el.innerHTML = leaderboard.map((r, i) =>
-        '<div class="flex justify-between px-3 py-1 rounded ' + (i === 0 ? 'bg-violet-600/20 text-violet-300' : 'text-zinc-400') + '">' +
-        '<span>' + (i + 1) + '. ' + r.username + '</span>' +
-        '<span class="font-mono">' + r.presses + '</span></div>'
-      ).join('');
-      const total = leaderboard.reduce((s, r) => s + parseInt(r.presses), 0);
-      document.getElementById('count').textContent = total + ' total presses';
+    function money(cents) {
+      return '$' + (Number(cents) / 100).toFixed(2);
     }
 
-    document.getElementById('press-btn').addEventListener('click', async () => {
+    async function loadPanel() {
+      const status = document.getElementById('panel-status');
+      const wrap = document.getElementById('panel');
       try {
-        const res = await fetch('/api/press', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...headers },
+        const res = await fetch('/api/test-panel', { headers });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        status.textContent = '';
+        wrap.classList.remove('hidden');
+
+        document.getElementById('stat-version').textContent = data.schemaVersion ?? '–';
+        document.getElementById('stat-products').textContent = data.counts.products;
+        document.getElementById('stat-orders').textContent = data.counts.orders;
+        document.getElementById('stat-value').textContent = money(data.totalOrderValueCents);
+
+        const ul = document.getElementById('integrity-list');
+        ul.innerHTML = '';
+        data.integrity.forEach((check) => {
+          const li = document.createElement('li');
+          li.className = 'flex items-start gap-2';
+          const dot = check.ok
+            ? '<span class="mt-0.5 inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>'
+            : '<span class="mt-0.5 w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"></span>';
+          li.innerHTML = dot + '<div><div class="' + (check.ok ? 'text-zinc-100' : 'text-red-300') + '">' + check.name + '</div><div class="text-xs text-zinc-500">' + check.detail + '</div></div>';
+          ul.appendChild(li);
         });
-        if (res.ok) loadLeaderboard();
-        else if (res.status === 401) document.getElementById('count').textContent = 'Sign in to press!';
+
+        const p = data.permissions;
+        const perms = document.getElementById('permissions');
+        perms.innerHTML =
+          '<div>App connects as <span class="font-mono text-violet-300">' + p.currentUser + '</span></div>' +
+          '<div>Database owner: <span class="font-mono">' + p.databaseOwner + '</span>' + (p.canCreateSchema ? ', can create schema' : ', cannot create schema') + '</div>' +
+          '<div class="text-xs text-zinc-500">' + data.note + '</div>';
+      } catch (err) {
+        status.textContent = 'Panel error: ' + err.message;
+      }
+    }
+
+    async function loadProducts() {
+      const el = document.getElementById('products-list');
+      try {
+        const res = await fetch('/api/products', { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        products = data.products || [];
+        if (!products.length) {
+          el.innerHTML = '<p class="text-zinc-500">No products yet. Use the seed generator below.</p>';
+          return;
+        }
+        el.innerHTML = products.map((p, i) =>
+          '<label class="flex items-center gap-3 rounded-lg bg-zinc-800/60 px-3 py-2 cursor-pointer">' +
+          '<input type="radio" name="product" value="' + p.id + '" class="accent-violet-500" ' + (i === 0 ? 'checked' : '') + '>' +
+          '<div class="flex-1 min-w-0"><div class="font-mono text-xs text-zinc-400">' + p.sku + '</div>' +
+          '<div class="truncate">' + p.name + '</div></div>' +
+          '<div class="text-right shrink-0"><div>' + money(p.price_cents) + '</div>' +
+          '<div class="text-xs text-zinc-500">stock ' + p.stock_quantity + '</div></div></label>'
+        ).join('');
       } catch {}
+    }
+
+    async function loadOrders() {
+      const el = document.getElementById('orders-list');
+      try {
+        const res = await fetch('/api/orders?limit=10', { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        const orders = data.orders || [];
+        if (!orders.length) {
+          el.innerHTML = '<p class="text-zinc-500">No orders yet.</p>';
+          return;
+        }
+        el.innerHTML = orders.map((o) =>
+          '<div class="flex justify-between gap-2 px-3 py-2 rounded bg-zinc-800/60">' +
+          '<span class="font-mono text-xs">' + o.order_ref + '</span>' +
+          '<span class="text-zinc-500">' + o.username + '</span>' +
+          '<span class="font-mono">' + money(o.total_cents) + '</span></div>'
+        ).join('');
+      } catch {}
+    }
+
+    document.getElementById('panel-refresh').addEventListener('click', loadPanel);
+
+    document.getElementById('order-submit').addEventListener('click', async () => {
+      const button = document.getElementById('order-submit');
+      const status = document.getElementById('order-status');
+      const selected = document.querySelector('input[name="product"]:checked');
+      const orderRef = document.getElementById('order-ref').value.trim();
+      if (!selected) { status.textContent = 'Pick a product first.'; return; }
+      button.disabled = true;
+      status.textContent = 'Placing order…';
+      try {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: jsonHeaders,
+          body: JSON.stringify({
+            items: [{ productId: Number(selected.value), quantity: 1 }],
+            orderRef: orderRef || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          status.textContent = data.duplicate
+            ? 'Duplicate reference accepted: ' + data.orderRef + ' already exists, no double write.'
+            : 'Order placed: ' + data.orderRef + ' (' + money(data.totalCents) + ')';
+          await Promise.all([loadProducts(), loadOrders(), loadPanel()]);
+        } else {
+          status.textContent = 'Failed (rolled back): ' + (data.error || res.status);
+        }
+      } catch (err) {
+        status.textContent = 'Request error: ' + err.message;
+      } finally {
+        button.disabled = false;
+      }
     });
 
-    loadLeaderboard();
+    document.getElementById('seed-run').addEventListener('click', async () => {
+      const button = document.getElementById('seed-run');
+      const status = document.getElementById('seed-status');
+      const seedKey = document.getElementById('seed-key').value.trim();
+      const products = parseInt(document.getElementById('seed-products').value, 10) || 0;
+      const orders = parseInt(document.getElementById('seed-orders').value, 10) || 0;
+      button.disabled = true;
+      status.textContent = 'Seeding… this can take a moment for large volumes.';
+      try {
+        const res = await fetch('/api/seed', {
+          method: 'POST',
+          headers: jsonHeaders,
+          body: JSON.stringify({ seedKey, products, orders }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          status.textContent = 'Seeded ' + (data.createdProducts || 0) + ' products and '
+            + (data.createdOrders || 0) + ' orders under key "' + data.seedKey + '". Same key gives same data.';
+          await Promise.all([loadProducts(), loadOrders(), loadPanel()]);
+        } else {
+          status.textContent = 'Seed failed: ' + (data.error || res.status);
+        }
+      } catch (err) {
+        status.textContent = 'Request error: ' + err.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('rollback-run').addEventListener('click', async () => {
+      const status = document.getElementById('rollback-status');
+      status.textContent = 'Running failing transaction…';
+      try {
+        const res = await fetch('/api/test/failing-transaction', {
+          method: 'POST',
+          headers: jsonHeaders,
+        });
+        const data = await res.json();
+        const clean = data.rolledBack && Number(data.rowsWrittenAfterRollback) === 0;
+        status.textContent = clean
+          ? 'Rollback verified: probe row was written, then fully removed. Nothing persisted.'
+          : 'Rollback FAILED: rows remain after rollback. ' + JSON.stringify(data);
+      } catch (err) {
+        status.textContent = 'Request error: ' + err.message;
+      }
+    });
+
+    (async function init() {
+      await Promise.all([loadProducts(), loadOrders(), loadPanel()]);
+    })();
   </script>
 </body>
 </html>
