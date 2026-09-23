@@ -68,3 +68,21 @@ shared understanding of what this app is for)_
 _(optional — e.g. "all currency values stored as integer cents, not
 floats"; "the `posts` table is append-only"; "avoid adding new
 dependencies"; etc.)_
+
+## About sv-staging-stockroom
+
+This app is a small inventory-and-orders workload used to exercise database
+migration and restore behaviour on the platform. It tests relationships,
+transactions, JSONB/Unicode data, deterministic seeding, and role ownership
+through a visible test panel.
+
+## App-specific conventions
+
+- All monetary values are stored as integer cents (`price_cents`,
+  `total_cents`, `unit_price_cents`).
+- Tables are public by default: nothing here is user-private, and the app is
+  meant to be exercised by reviewers in staging previews.
+- `POST /api/seed` is deterministic per `seedKey`: same key always produces
+  the same rows, so before/after migration snapshots are comparable.
+- `POST /api/test/failing-transaction` is intentional; it proves rollback.
+- `scripts/migration-verify.js` is the external verification helper.
